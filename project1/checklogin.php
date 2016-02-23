@@ -1,6 +1,6 @@
 #!/usr/bin/php
 <?php
-date_default_timezone_set("Asia/Bangkok");
+date_default_timezone_set("GMT");
 
 if(!isset($argv[1])){
 	$argv[1]="";
@@ -9,10 +9,8 @@ if(!isset($argv[1])){
 //---use function---------
 checkArg($argv[1]);
 calWeekend($sdate,$edate,$day,$holiday);
-isolateFile($filename);
-isolatelog($sdate,$edate,$day,$weekends);
-checkUserLogin($sdate,$edate,$day,$weekends);
-countName($dataAll);
+checkUserLogin($sdate,$edate,$day,$weekends,$filename);
+countName($arrUniq);
 maxLogin($namemax,$dataArr,$numAvg);
 writeCsv($loginall,$dataArr,$minMaxAvg,$totalUser,$namedate,$week,$holiday,$arrNoUniq,$minMaxAvgNoUniq,$arrNumLogin);
 writeCsv_test($loginall,$arrSortNameLogin);
@@ -21,6 +19,10 @@ function checkArg($argv){
 	$options=$argv;
 	global $filename,$holiday,$sdate,$edate,$day;
 	if($options=="-i"){
+		$ckfile=file_exists("filename.txt");
+		if($ckfile==0){
+			exit('Enable to open file "filename.txt"\n');
+		}
 		$file_n=fopen("filename.txt","r") or dir("Enable to open file");
 		while(!feof($file_n)){
         		$data=fgets($file_n);
@@ -103,8 +105,8 @@ function addHoliday(){
 			echo "Insert Wrong format";
 			addHoliday();
 		}
-	}else{
-	//	echo $holiday;
+	}else if($ans=="n"){
+		echo $holiday;
 	
 	}
 }
@@ -137,146 +139,132 @@ function calWeekend($start_d,$end_d,$countday,$holidays){
 	$week=substr($weekend,0,-1);
 //	echo $week_e;
 	$weekends=explode(",",$week_e);
-	
-}
-
-//---isolate log file by keyword -grep login
-function isolateFile($filename){
-	$filename=$filename;
-	$command ='cat -A '.$filename.' | grep "login from" > userlogin.log';
-	echo shell_exec($command);	
-
-}
-
-//---isolate log file by date
-function isolatelog($s_date,$e_date,$count_d,$weekend){
-	$sdate=$s_date;
-	$edate=$e_date;
-	$weekend=$weekend;
-	$checkw="";
-	$day=$count_d;
-	for($i=0;$i<=$day;$i++){
-		$date1=date('Y-m-d',strtotime($sdate."+".$i." days"));
-		$command="cat -A userlogin.log | grep ".$date1." > login_".$date1.".log";
-		echo shell_exec($command);
-	}
-	$command_del_f="rm -rf userlogin.log";
-	echo shell_exec($command_del_f);
+print_r($weekends);	
 }
 
 
-//---check user login uniq --dataAll array 1 di
-function checkUserLogin($sdate,$edate,$day,$weekends){
+//---check user login uniq --arrUniq array 2 di
+function checkUserLogin($sdate,$edate,$day,$weekends,$filename){
 	$sdate=$sdate;
 	$weekends=$weekends;
 	$day=$day;
+	$date1=$sdate;
 	$edate=$edate;
-	$num1=0;
+	$num1=$n=0;
 	$numUserUnique=$numUserNoUniq=$numU_no_uniq=0;
-	global $dataAll,$numAvg,$arrNoUniq,$numUserNoUniq,$minMaxAvgNoUniq;
-	
+	global $arrUniq,$numAvg,$arrNoUniq,$numUserNoUniq,$minMaxAvgNoUniq;
+        $arrUniq=array();
+	$dataAll="";
 	//read log file
-	for($c=0;$c<=$day;$c++){
+//	for($c=0;$c<=$day;$c++){
 		$nameArr=array();
-		$date2=date('Y-m-d',strtotime($sdate."+".$c." days"));
-		$filename="login_".$date2.".log";
-	
-		$checkw="no";
-        	for($i=0;$i<=count($weekends)-1;$i++){
-                        if($date2==$weekends[$i]){
-                                $checkw="yes";
-
-                        }
-                        else{
-                        }
-                }
-
-		$file = fopen("$filename","r");
-		$file_size=filesize("$filename");
-	//	if($file_size>0){	
-			//replace data in logfile
+//		$date2=date('Y-m-d',strtotime($sdate."+".$c." days"));
+//		$filename="login_".$date2.".log";
+	        
+			$file = fopen("$filename","r");
+		
 			$replace_from=array("SINDCEAP","_Profile - ","login from ");
 			$replace_to=array(",",",",",");
 			$strname="";
 			while(!feof($file)){
 				$data=fgets($file);
-				$data_rep=str_replace($replace_from,$replace_to,$data);
 				
-				//explode string to array	
-				$arrData=explode(",",$data_rep);
+			        $pos=strpos($data,"login from");
+				if($pos===false){
+				}
+				else{	
+					$data_rep=str_replace($replace_from,$replace_to,$data);
 				
-				$date_time_rep=str_replace("T",",",$arrData[0]);
-				$date_time=explode(",",$date_time_rep);
-				$date1=$date_time[0];
-				if(!isset($date_time[1])){
-					$date_time[1]="";
-				}
-				$time1=substr($date_time[1],0,8);
-				if(!isset($arrData[2])){
-					$arrData[2]="";
-					$arrData[3]="";
-				}
-				$login_name=substr($arrData[2],0,-1);
-				if(preg_match("/^[0-9]$/",substr($login_name,0,1))){
-					$login_name= "'".$login_name;
-				}
-				$ipaddr=substr($arrData[3],0,-2);
-				//echo $date1.",".$time1.",".$login_name.",".$ipaddr."\n";
-				$strname .= $login_name.",";
-				//echo $strname."\n";
-			
-			}
-			fclose($file);
-		        
-		        //unique name login by date and keep in dataAll variable
-			$strname1=substr($strname,0,-2);
-			$arrName= explode(",",$strname1);
-			$uniqName=array_unique($arrName);
-			$countName=count($uniqName);
-			$countNoUniq=count($arrName);
-			$nameArrToStr=implode(",",$uniqName);
-			$strArrName=implode(",",$arrName);
-			if($file_size==0){
-				$countName=0;
-				$nameArrToStr="";
-				$countNoUniq=0;
-				$strArrName="";
-			}
-			if($checkw=="no"){
-                                $numUserUnique=$numUserUnique+$countName;
-				$max_no_u[$num1]=$countNoUniq;	
-				$numU_no_uniq+=$countNoUniq;	
-                                $num1=$num1+1;
+					//explode string to array	
+					$arrData=explode(",",$data_rep);
+						
+					$edateadd1=date('Y-m-d',strtotime($edate."+ 1 days"));
+					$date_time_rep=str_replace("T",",",$arrData[0]);
+					$date_time=explode(",",$date_time_rep);
+					if($date_time[0]>=$sdate && $date_time[0]<=$edateadd1){
+							if(!isset($date_time[1])){
+							$date_time[1]="";
+						}
+						$time1=substr($date_time[1],0,8);
+						if(!isset($arrData[2])){
+							$arrData[2]="";
+							$arrData[3]="";
+						}
+						$login_name=substr($arrData[2],0,-1);
+						if(preg_match("/^[0-9]$/",substr($login_name,0,1))){
+							$login_name= "'".$login_name;
+						}
+						$ipaddr=substr($arrData[3],0,-2);
+
+						$checkw="no";
+	        				for($i=0;$i<=count($weekends)-1;$i++){
+	                        			if($date1==$weekends[$i]){
+	                                			$checkw="yes";
+	
+	                        			}else{}
+	                			} 	
+						if($date_time[0]==$date1){
 							
-                        }
-			$dataAll.=$date2.",".$countName.",".$nameArrToStr.'\n';
-			$arrNoUniq[$c]=$date2.",".$countNoUniq.",".$strArrName;
-			$numUserNoUniq+=$countNoUniq;	
-			$min_no_u[$c]=$countNoUniq;
-	//	}
-	//	$numAvg=$numUserUnique/$num1;
-		$command_del="rm -rf ".$filename;
-		echo shell_exec($command_del);
+							$strname .= $login_name.",";
+							//echo $strname."\n";
+						}else{
+								
+							if(substr_count($strname,",")>0){							
+								$strname1=substr($strname,0,-1);
+							}
+							//$strname1=$strname;			
+							$arrName= explode(",",$strname1);
+							$uniqName=array_unique($arrName);
+							$countName=count($uniqName);
+							$countNoUniq=count($arrName);
+							$nameArrToStr=implode(",",$uniqName);
+							$strArrName=implode(",",$arrName);
+							if($checkw=="no"){
+	                             				$numUserUnique=$numUserUnique+$countName;
+								$max_no_u[$num1]=$countNoUniq;	
+								$numU_no_uniq+=$countNoUniq;	
+	                                			$num1=$num1+1;
+								
+	                        			}
+							$arrUniq[$n]=$date1.",".$countName.",".$nameArrToStr;
+							//$arrUniq_tmp=explode(",",$dataAll);
+							//$arrUniq[$n]=array($arrUniq_tmp);
+							$arrNoUniq[$n]=$date1.",".$countNoUniq.",".$strArrName;
+							$numUserNoUniq+=$countNoUniq;	
+							$min_no_u[$n]=$countNoUniq;
+							$n++;
+							$date1=$date_time[0];
+							$strname=$login_name.",";
+
+
+						}
+					}
+				}
 		
-	}
-	$numAvg=$numUserUnique/$num1;
-	$numAvgNoUniq=$numU_no_uniq/$num1;
+			
+			}				
+			fclose($file);
+//	print_r($arrUniq);
+	$num2=($day+1)-count($weekends);
+	$numAvg=$numUserUnique/$num2;
+	$numAvgNoUniq=$numU_no_uniq/$num2;
 	$maxUserNoUniq=max($max_no_u);
+	echo "sum=".$numUserUnique."/ days=".$num2."= ".$numAvg."\n";
+	echo "sum=".$numU_no_uniq."/ days=".$num2."= ".$numAvgNoUniq."\n";
 	$minUserNoUniq=min($min_no_u);
 	$minMaxAvgNoUniq=array(array("Min.",$minUserNoUniq),array("Max.",$maxUserNoUniq),array("Avg.",$numAvgNoUniq),array("Total.",$numUserNoUniq));
-//	echo $numU_no_uniq."/".$num1."=".$numAvg;
 }
 
-//---count name by date and uniq name all --convert dataAll 1 di to 2 di
-function countName($data1){
+//---count name by date and uniq name all 
+function countName($dataAll){
 	
 	//dataArr keep data array 2 di	
 	//loinall keep data user login unique
 	//namemax keep total name login by date
 	global $dataArr,$namemax,$loginall,$totalUser,$arrNumLogin,$arrSortNameLogin;	
-	$dataAll=$data1;
+	$tmp=$dataAll;
 	$loginLess10=$loginMore10=$loginMore15=$loginMore20=0;
-	$tmp = explode('\n',$dataAll);
+	//$tmp = explode('\n',$dataAll);
 	$data= array();
 	$name_value_login="";
 	foreach($tmp as $k => $v)
