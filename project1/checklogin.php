@@ -1,7 +1,30 @@
 #!/usr/bin/php
 <?php
-date_default_timezone_set("GMT");
-
+	$handle=popen("date +%Z","r");
+        $timezone=fread($handle,2096);
+        pclose($handle);
+        
+        if(is_link('/etc/localtime')){
+                // /etc/localtime is a symlink to the timezone in /usr/share/zoneinfo
+                $filename = readlink('/etc/localtime');
+                preg_match('/.\/zoneinfo\/(.*)/',$filename,$match);
+                $timezone = $match[1];
+                //print_r($match);
+        }elseif(file_exists('/etc/timezone')){
+                $data = file_get_contents('/etc/timezone');
+                if($data){
+                        $timezone=substr($data,0,-1);
+                }       
+        }elseif(file_exists('/etc/sysconfig/clock')){
+                $data = parse_ini_file('/etc/sysconfig/clock');
+                if(!empty($data['ZONE'])){
+                        $timezone=$data['ZONE'];
+                }
+        }
+        
+        date_default_timezone_set("$timezone");
+?>
+<? php
 if(!isset($argv[1])){
 	$argv[1]="";
 }
